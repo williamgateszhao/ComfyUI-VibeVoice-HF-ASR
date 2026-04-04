@@ -6,32 +6,56 @@ import comfy.model_management
 # Use Native Transformers rather than custom vibevoice modular code
 from transformers import AutoProcessor, VibeVoiceAsrForConditionalGeneration
 
-def get_quanto_config(quantization_str):
+def get_quantization_config(quantization_str, compute_dtype=torch.bfloat16):
     if quantization_str == "none":
         return None
-    try:
-        from transformers import QuantoConfig
-        import torch
 
-        # Monkey-patch Quanto's QLinear to ensure inputs are contiguous.
-        # This prevents the "A is not contiguous" RuntimeError (specifically seen in Marlin kernel operations)
-        # when transformers internally passes strided views into linear layers.
+    if quantization_str.startswith("bnb_"):
         try:
-            import optimum.quanto.nn.qlinear as quanto_qlinear
-            if not hasattr(quanto_qlinear.QLinear, "_original_forward"):
-                quanto_qlinear.QLinear._original_forward = quanto_qlinear.QLinear.forward
-                def patched_forward(self, input: torch.Tensor) -> torch.Tensor:
-                    if not input.is_contiguous():
-                        input = input.contiguous()
-                    return self._original_forward(input)
-                quanto_qlinear.QLinear.forward = patched_forward
-                print("Applied contiguous patch to optimum.quanto QLinear")
+            from transformers import BitsAndBytesConfig
+            if quantization_str == "bnb_int8":
+                return BitsAndBytesConfig(load_in_8bit=True)
+            elif quantization_str in ["bnb_nf4", "bnb_fp4"]:
+                quant_type = quantization_str.split("_")[1]
+                return BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_compute_dtype=compute_dtype,
+                    bnb_4bit_quant_type=quant_type,
+                    bnb_4bit_use_double_quant=True
+                )
+            else:
+                raise ValueError(f"Unknown bitsandbytes quantization method: {quantization_str}")
         except ImportError:
-            pass # optimum.quanto not present or version mismatch, skip patch
+            raise ImportError(f"To use '{quantization_str}', please install bitsandbytes: pip install bitsandbytes")
 
-        return QuantoConfig(weights=quantization_str, modules_to_not_convert=["lm_head"])
-    except ImportError:
-        raise ImportError(f"To use '{quantization_str}' quantization, please install optimum-quanto: pip install optimum-quanto")
+    elif quantization_str.startswith("quanto_"):
+        try:
+            from transformers import QuantoConfig
+            import torch
+
+            # Monkey-patch Quanto's QLinear to ensure inputs are contiguous.
+            # This prevents the "A is not contiguous" RuntimeError (specifically seen in Marlin kernel operations)
+            # when transformers internally passes strided views into linear layers.
+            try:
+                import optimum.quanto.nn.qlinear as quanto_qlinear
+                if not hasattr(quanto_qlinear.QLinear, "_original_forward"):
+                    quanto_qlinear.QLinear._original_forward = quanto_qlinear.QLinear.forward
+                    def patched_forward(self, input: torch.Tensor) -> torch.Tensor:
+                        if not input.is_contiguous():
+                            input = input.contiguous()
+                        return self._original_forward(input)
+                    quanto_qlinear.QLinear.forward = patched_forward
+                    print("Applied contiguous patch to optimum.quanto QLinear")
+            except ImportError:
+                pass # optimum.quanto not present or version mismatch, skip patch
+
+            quanto_weight = quantization_str.replace("quanto_", "")
+            return QuantoConfig(weights=quanto_weight, modules_to_not_convert=["lm_head"])
+        except ImportError:
+            raise ImportError(f"To use '{quantization_str}' quantization, please install optimum-quanto: pip install optimum-quanto")
+            
+    else:
+        raise ValueError(f"Unknown quantization method: {quantization_str}")
 
 class VibeVoiceHFLoader:
     @classmethod
@@ -40,7 +64,7 @@ class VibeVoiceHFLoader:
             "required": {
                 "model_name": ("STRING", {"default": "microsoft/VibeVoice-ASR-HF", "tooltip": "HuggingFace repo ID or local path to model"}),
                 "precision": (["fp16", "bf16", "fp32"], {"default": "bf16", "tooltip": "Model precision. Use bf16 for stability if supported, fp16 otherwise"}),
-                "quantization": (["none", "int8", "float8", "int4", "int2"], {"default": "none", "tooltip": "Quanto weights quantization. Greatly reduces VRAM. Requires 'optimum-quanto' pip package"}),
+                "quantization": (["none", "bnb_nf4", "bnb_fp4", "bnb_int8", "quanto_int8", "quanto_float8", "quanto_int4", "quanto_int2"], {"default": "bnb_nf4", "tooltip": "Quantization method. bnb_* -> bitsandbytes, quanto_* -> optimum-quanto."}),
                 "device": (["cuda", "cpu", "mps", "xpu", "auto"], {"default": "auto", "tooltip": "Device to run the model on"}),
             },
         }
@@ -50,7 +74,7 @@ class VibeVoiceHFLoader:
     FUNCTION = "load_model"
     CATEGORY = "VibeVoice HF ASR"
 
-    def load_model(self, model_name, precision, device, quantization="none"):
+    def load_model(self, model_name, precision, device, quantization="bnb_nf4"):
         print(f"Loading Native VibeVoice HF ASR model: {model_name}")
 
         model_path = model_name
@@ -102,10 +126,10 @@ class VibeVoiceHFLoader:
         comfy.model_management.unload_all_models()
         comfy.model_management.soft_empty_cache()
 
-        quant_config = get_quanto_config(quantization)
+        quant_config = get_quantization_config(quantization, dtype)
 
         if quant_config is not None:
-             print(f"Loading HF model with Quanto '{quantization}' quantization to {device}...")
+             print(f"Loading HF model with '{quantization}' quantization to {device}...")
              device_map = "auto" if device != "cpu" else "cpu"
              model = VibeVoiceAsrForConditionalGeneration.from_pretrained(
                  model_path,
