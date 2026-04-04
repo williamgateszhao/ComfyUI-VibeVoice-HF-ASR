@@ -1,8 +1,7 @@
 [project]
-name = "comfyui-kaola-vibevoice-asr"
-description = "ComfyUI custom nodes for VibeVoice ASR (Automatic Speech Recognition) with support for auto-labeling music/lyrics and high accuracy transcription."
-version = "1.0.3"
-license = {file = "LICENSE"} 
+name = "comfyui-vibevoice-hf-asr"
+description = "Pure HuggingFace native ComfyUI ASR nodes for the microsoft/VibeVoice-ASR-HF model, free from legacy audio tooling wrappers."
+version = "1.0.0"
 classifiers = [
     "Operating System :: OS Independent",
     "Environment :: GPU :: NVIDIA CUDA",
@@ -10,12 +9,11 @@ classifiers = [
 ]
 
 [project.urls]
-Repository = "https://github.com/kana112233/ComfyUI-kaola-VibeVoice-ASR"
-#  Used by Comfy Registry https://registry.comfy.org
-Documentation = "https://github.com/kana112233/ComfyUI-kaola-VibeVoice-ASR/blob/main/README.md"
-"Bug Tracker" = "https://github.com/kana112233/ComfyUI-kaola-VibeVoice-ASR/issues"
+Repository = "https://github.com/williamgateszhao/ComfyUI-VibeVoice-HF-ASR"
+Documentation = "https://github.com/williamgateszhao/ComfyUI-VibeVoice-HF-ASR/blob/main/README.md"
+"Bug Tracker" = "https://github.com/williamgateszhao/ComfyUI-VibeVoice-HF-ASR/issues"
 
 [tool.comfy]
-PublisherId = "kaola"
-DisplayName = "ComfyUI-Kaola-VibeVoice-ASR"
+PublisherId = "williamgateszhao"
+DisplayName = "ComfyUI-VibeVoice-HF-ASR"
 Icon = ""
