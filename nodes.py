@@ -82,9 +82,9 @@ class VibeVoiceHFLoader:
         return {
             "required": {
                 "model_name": ("STRING", {"default": "microsoft/VibeVoice-ASR-HF", "tooltip": "HuggingFace repo ID or local path to model"}),
-                "precision": (["fp16", "bf16", "fp32"], {"default": "bf16", "tooltip": "Model precision. Use bf16 for stability if supported, fp16 otherwise"}),
-                "quantization": (["none", "bnb_nf4", "quanto_int8", "quanto_int4", "torchao_int8", "torchao_fp8"], {"default": "bnb_nf4", "tooltip": "Quantization method. bnb_* -> bitsandbytes, quanto_* -> optimum-quanto, torchao_* -> torchao."}),
-                "device": (["cuda", "cpu", "mps", "xpu", "auto"], {"default": "auto", "tooltip": "Device to run the model on"}),
+                "precision": (["fp16", "bf16", "fp32"], {"default": "bf16", "tooltip": "Model precision. Use bf16 for 30/40-series GPUs, fp16 for older cards, fp32 for CPU."}),
+                "quantization": (["none", "bnb_nf4", "quanto_int8", "quanto_int4", "torchao_int8", "torchao_fp8"], {"default": "bnb_nf4", "tooltip": "Quantization method. Use bnb_nf4 for <16G VRAM, torchao_int8/fp8 for >=16G VRAM (Quality)."}),
+                "device": (["cuda", "cpu", "mps", "xpu", "auto"], {"default": "auto", "tooltip": "Device to run on. cuda=NVIDIA, mps=Mac, xpu=Intel, auto=detect best."}),
             },
         }
 
@@ -182,10 +182,10 @@ class VibeVoiceHFTranscribe:
             "required": {
                 "vibevoice_hf_model": ("VIBEVOICE_HF_MODEL", {"tooltip": "Loaded Native VibeVoice HF model"}),
                 "audio": ("AUDIO", {"tooltip": "Input audio to transcribe"}),
-                "max_new_tokens": ("INT", {"default": 32768, "min": 1, "max": 65536, "tooltip": "Max tokens to generate"}),
-                "temperature": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.1, "tooltip": "Randomness (0.0 = deterministic)"}),
-                "top_p": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "Nucleus sampling probability"}),
-                "repetition_penalty": ("FLOAT", {"default": 1.2, "min": 0.0, "max": 10.0, "step": 0.1, "tooltip": "Penalty for repetition (>1.0 reduces repetition)"}),
+                "max_new_tokens": ("INT", {"default": 32768, "min": 1, "max": 65536, "tooltip": "Maximum number of tokens to generate. 32768 is more than enough for long audio."}),
+                "temperature": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.1, "tooltip": "Controls randomness. 0.0 is greedy decoding (most likely), higher values increase variety."}),
+                "top_p": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "Nucleus sampling: only considers tokens with cumulative probability < top_p. Only active if temperature > 0."}),
+                "repetition_penalty": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.1, "tooltip": "Penalty for repeating tokens. 1.0 means no penalty. > 1.0 discourages repetition."}),
                 "num_beams": ("INT", {"default": 1, "min": 1, "max": 10, "tooltip": "Beam search width (1 = greedy)"}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "Random seed"}),
                 "tokenizer_chunk_size": ("INT", {"default": 1440000, "min": 3200, "max": 2**31-1, "step": 3200, "tooltip": "Size of audio chunks for tokenizer to process to save memory. 1440000 = 60s at 24kHz"}),
