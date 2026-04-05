@@ -58,7 +58,21 @@ def get_quantization_config(quantization_str, compute_dtype=torch.bfloat16):
             return QuantoConfig(weights=quanto_weight, modules_to_not_convert=["lm_head"])
         except ImportError:
             raise ImportError(f"To use '{quantization_str}' quantization, please install optimum-quanto: pip install optimum-quanto")
-            
+    
+    elif quantization_str.startswith("torchao_"):
+        try:
+            from transformers import TorchAoConfig
+            from torchao.quantization import Int8WeightOnlyConfig, Float8WeightOnlyConfig, Int4WeightOnlyConfig
+
+            if quantization_str == "torchao_int8":
+                return TorchAoConfig(quant_type=Int8WeightOnlyConfig(version=2))
+            elif quantization_str == "torchao_fp8":
+                return TorchAoConfig(quant_type=Float8WeightOnlyConfig(version=2))
+            else:
+                raise ValueError(f"Unknown torchao quantization method: {quantization_str}")
+        except ImportError:
+            raise ImportError(f"To use '{quantization_str}', please install torchao: pip install torchao")
+
     else:
         raise ValueError(f"Unknown quantization method: {quantization_str}")
 
@@ -69,7 +83,7 @@ class VibeVoiceHFLoader:
             "required": {
                 "model_name": ("STRING", {"default": "microsoft/VibeVoice-ASR-HF", "tooltip": "HuggingFace repo ID or local path to model"}),
                 "precision": (["fp16", "bf16", "fp32"], {"default": "bf16", "tooltip": "Model precision. Use bf16 for stability if supported, fp16 otherwise"}),
-                "quantization": (["none", "bnb_nf4", "quanto_int8", "quanto_int4"], {"default": "bnb_nf4", "tooltip": "Quantization method. bnb_* -> bitsandbytes, quanto_* -> optimum-quanto."}),
+                "quantization": (["none", "bnb_nf4", "quanto_int8", "quanto_int4", "torchao_int8", "torchao_fp8"], {"default": "bnb_nf4", "tooltip": "Quantization method. bnb_* -> bitsandbytes, quanto_* -> optimum-quanto, torchao_* -> torchao."}),
                 "device": (["cuda", "cpu", "mps", "xpu", "auto"], {"default": "auto", "tooltip": "Device to run the model on"}),
             },
         }

@@ -3,3 +3,4 @@ accelerate
 librosa
 bitsandbytes
 optimum-quanto
+torchao
