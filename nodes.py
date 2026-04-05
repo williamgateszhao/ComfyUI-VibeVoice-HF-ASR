@@ -82,7 +82,7 @@ class VibeVoiceHFLoader:
         return {
             "required": {
                 "model_name": ("STRING", {"default": "microsoft/VibeVoice-ASR-HF", "tooltip": "HuggingFace repo ID or local path to model"}),
-                "precision": (["fp16", "bf16", "fp32"], {"default": "bf16", "tooltip": "Model precision. Use bf16 for 30/40-series GPUs, fp16 for older cards, fp32 for CPU."}),
+                "precision": (["fp16", "bf16", "fp32"], {"default": "bf16", "tooltip": "Model precision. Use bf16 for 30-series or newer GPUs, fp16 for older cards, fp32 for CPU."}),
                 "quantization": (["none", "bnb_nf4", "quanto_int8", "quanto_int4", "torchao_int8", "torchao_fp8"], {"default": "bnb_nf4", "tooltip": "Quantization method. Use bnb_nf4 for <16G VRAM, torchao_int8/fp8 for >=16G VRAM (Quality)."}),
                 "device": (["cuda", "cpu", "mps", "xpu", "auto"], {"default": "auto", "tooltip": "Device to run on. cuda=NVIDIA, mps=Mac, xpu=Intel, auto=detect best."}),
             },
@@ -268,9 +268,18 @@ class VibeVoiceHFTranscribe:
         else:
             generation_config["tokenizer_chunk_size"] = tokenizer_chunk_size
 
-        from transformers import TextStreamer
+        from transformers import TextStreamer, StoppingCriteria, StoppingCriteriaList
         tokenizer = processor.tokenizer if hasattr(processor, "tokenizer") else processor
         streamer = TextStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
+
+        class ComfyUIInterrupt(StoppingCriteria):
+            def __call__(self, input_ids, scores, **kwargs):
+                import comfy.model_management
+                comfy.model_management.throw_exception_if_processing_interrupted()
+                return False
+
+        stopping_criteria = StoppingCriteriaList([ComfyUIInterrupt()])
+        generation_config["stopping_criteria"] = stopping_criteria
 
         print(f"\n{'='*50}")
         print("Starting LLM Generation (Watch stream below):")
