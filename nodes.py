@@ -14,13 +14,18 @@ def get_quantization_config(quantization_str, compute_dtype=torch.bfloat16):
         try:
             from transformers import BitsAndBytesConfig
             if quantization_str == "bnb_int8":
-                return BitsAndBytesConfig(load_in_8bit=True)
-            elif quantization_str in ["bnb_nf4", "bnb_fp4"]:
-                quant_type = quantization_str.split("_")[1]
+                # Note: bnb_int8 is fundamentally broken for VibeVoice due to audio encoder outliers
+                # causing CUDA kernel segfaults or infinite hangs in bitsandbytes.
+                # It is highly recommended to use bnb_nf4 or quanto_int8 instead.
+                return BitsAndBytesConfig(
+                    load_in_8bit=True,
+                    llm_int8_skip_modules=["lm_head"]
+                )
+            elif quantization_str == "bnb_nf4":
                 return BitsAndBytesConfig(
                     load_in_4bit=True,
                     bnb_4bit_compute_dtype=compute_dtype,
-                    bnb_4bit_quant_type=quant_type,
+                    bnb_4bit_quant_type="nf4",
                     bnb_4bit_use_double_quant=True
                 )
             else:
@@ -64,7 +69,7 @@ class VibeVoiceHFLoader:
             "required": {
                 "model_name": ("STRING", {"default": "microsoft/VibeVoice-ASR-HF", "tooltip": "HuggingFace repo ID or local path to model"}),
                 "precision": (["fp16", "bf16", "fp32"], {"default": "bf16", "tooltip": "Model precision. Use bf16 for stability if supported, fp16 otherwise"}),
-                "quantization": (["none", "bnb_nf4", "bnb_fp4", "bnb_int8", "quanto_int8", "quanto_float8", "quanto_int4", "quanto_int2"], {"default": "bnb_nf4", "tooltip": "Quantization method. bnb_* -> bitsandbytes, quanto_* -> optimum-quanto."}),
+                "quantization": (["none", "bnb_nf4", "quanto_int8", "quanto_int4"], {"default": "bnb_nf4", "tooltip": "Quantization method. bnb_* -> bitsandbytes, quanto_* -> optimum-quanto."}),
                 "device": (["cuda", "cpu", "mps", "xpu", "auto"], {"default": "auto", "tooltip": "Device to run the model on"}),
             },
         }
@@ -136,7 +141,6 @@ class VibeVoiceHFLoader:
                  torch_dtype=dtype,
                  device_map=device_map,
                  quantization_config=quant_config,
-                 trust_remote_code=True,
                  low_cpu_mem_usage=True,
              )
         else:
@@ -146,7 +150,6 @@ class VibeVoiceHFLoader:
                 model_path,
                 torch_dtype=dtype,
                 device_map=device_map,
-                trust_remote_code=True,
                 low_cpu_mem_usage=True,
             )
             
